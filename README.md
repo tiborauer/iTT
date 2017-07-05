@@ -1,5 +1,5 @@
 # iTT
-iTT toolbox for SPM 1.1
+iTT toolbox for SPM
 
 iTT toolbox for SPM implements the itertive Two-Threshold (iTT) approach
 to determine height thresholds in SPM.
@@ -7,8 +7,7 @@ to determine height thresholds in SPM.
 Reference:
 Auer T, Schweizer R, Frahm J. An iterative two-threshold analysis 
 for single-subject functional MRI of the human brain.
-Eur Radiol. 2011 Jun 28. [Epub ahead of print]
-PMID: 21710268 [PubMed - as supplied by publisher] 
+[DOI: 10.1007/s00330-011-2184-5](http://dx.doi.org/10.1007/s00330-011-2184-5)
 
 This file contains information about Install Configuration Usage of the
 toolbox.
