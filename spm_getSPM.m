@@ -1,7 +1,7 @@
 function [SPM,xSPM] = spm_getSPM(varargin)
-% Original spm_getSPM from SPM8 v4290 was edited to implement iterative
-% two-threshold (iTT) approach (ll. 655, 657, 676-699, 788-793) and to
-% enable displaying some information about resuts (ll. 837-846, 865).
+% Original spm_getSPM from SPM12 v6906 was edited to implement iterative
+% two-threshold (iTT) approach (ll. 694, 696, 700, 714-736, 837-843) and to
+% enable displaying some information about resuts (ll. 897-906, 919).
 %--------------------------------------------------------------------------
 %   06.07.11    Tibor Auer
 %--------------------------------------------------------------------------
@@ -98,7 +98,7 @@ function [SPM,xSPM] = spm_getSPM(varargin)
 % used as input at a higher level when effecting a random effects
 % analysis. (Note that the ess_????.{img,hdr} and
 % SPM{T,F}_????.{img,hdr} images are not suitable input for a higher
-% level analysis.) See spm_RandFX.man for further details.
+% level analysis.)
 %
 %__________________________________________________________________________
 %
@@ -185,15 +185,14 @@ function [SPM,xSPM] = spm_getSPM(varargin)
 % see spm_results_ui.m for further details of the SPM results section.
 % see also spm_contrasts.m
 %__________________________________________________________________________
-% Copyright (C) 2008 Wellcome Trust Centre for Neuroimaging
+% Copyright (C) 1999-2016 Wellcome Trust Centre for Neuroimaging
 
 % Andrew Holmes, Karl Friston & Jean-Baptiste Poline
-% $Id: spm_getSPM.m 4225 2011-03-02 15:53:05Z guillaume $
+% $Id: spm_getSPM.m 6827 2016-07-04 15:19:35Z guillaume $
 
 
 %-GUI setup
 %--------------------------------------------------------------------------
-spm_help('!ContextHelp',mfilename)
 spm('Pointer','Arrow')
 
 %-Select SPM.mat & note SPM results directory
@@ -206,7 +205,7 @@ try
     sts = 1;
 catch
     [spmmatfile, sts] = spm_select(1,'^SPM\.mat$','Select SPM.mat');
-    swd = spm_str_manip(spmmatfile,'H');
+    swd = spm_file(spmmatfile,'fpath');
 end
 if ~sts, SPM = []; xSPM = []; return; end
 
@@ -232,17 +231,10 @@ cd(SPM.swd);
 try
     SPM.xVol.S;
 catch
-    
-    %-Check the model has been estimated
-    %----------------------------------------------------------------------
-    str = { 'This model has not been estimated.';...
-            'Would you like to estimate it now?'};
-    if spm_input(str,1,'bd','yes|no',[1,0],1)
-        SPM = spm_spm(SPM);
-    else
-        SPM = []; xSPM = [];
-        return
-    end
+    spm('alert*',{'This model has not been estimated.','',...
+        fullfile(swd,'SPM.mat')}, mfilename, [], ~spm('CmdLine'));
+    SPM = []; xSPM = [];
+    return
 end
 
 xX   = SPM.xX;                      %-Design definition structure
@@ -380,7 +372,8 @@ try
     Mask = ~isempty(xSPM.Im) * (isnumeric(xSPM.Im) + 2*iscellstr(xSPM.Im));
 catch
     % Mask = spm_input('mask with other contrast(s)','+1','y/n',[1,0],2);
-    Mask = spm_input('apply masking','+1','b','none|contrast|image',[0,1,2],1);
+    % Mask = spm_input('apply masking','+1','b','none|contrast|image',[0,1,2],1);
+    Mask = spm_input('apply masking','+1','b','none|contrast|image|atlas',[0,1,2,3],1);
 end
 if Mask == 1
     
@@ -416,7 +409,31 @@ elseif Mask == 2
     try
         Im = xSPM.Im;
     catch
-        Im = cellstr(spm_select([1 Inf],'image','Select mask image(s)'));
+        [Im, sts] = spm_select([1 Inf],{'image','mesh'},'Select mask image(s)');
+        if ~sts, Im = []; else Im = cellstr(Im); end
+    end
+    
+    %-Inclusive or exclusive masking
+    %----------------------------------------------------------------------
+    try
+        Ex = xSPM.Ex;
+    catch
+        Ex = spm_input('nature of mask','+1','b','inclusive|exclusive',[0,1],1);
+    end
+    
+    pm = [];
+    
+elseif Mask == 3 % unused
+    
+    %-Get mask from atlas
+    %----------------------------------------------------------------------
+    try
+        error('Im = xSPM.Im;');                  % interactive only
+    catch
+        VM       = spm_atlas('mask');            % get atlas mask
+        VM.fname = spm_file(VM.fname,'unique');
+        VM       = spm_write_vol(VM,VM.dat);     % write mask
+        Im       = cellstr(VM.fname);
     end
     
     %-Inclusive or exclusive masking
@@ -474,12 +491,11 @@ elseif iscellstr(Im) && numel(Im) > 0
 end
 try
     titlestr = xSPM.title;
-    if isempty(titlestr)
-        titlestr = str;
-    end
 catch
-    titlestr = spm_input('title for comparison','+1','s',str);
+    %titlestr = spm_input('title for comparison','+1','s',str);
+    titlestr = '';
 end
+if isempty(titlestr), titlestr = str; end
 
 
 %-Bayesian or classical Inference?
@@ -492,13 +508,11 @@ if isfield(SPM,'PPM')
         SPM.PPM.xCon = [];
     end
     
-    % Set Bayesian con type
+    % Set Bayesian con type - but only if empty
     %----------------------------------------------------------------------
-    SPM.PPM.xCon(Ic).PSTAT = xCon(Ic).STAT;
-    
-    % Make all new contrasts Bayesian contrasts 
-    %----------------------------------------------------------------------
-    [xCon(Ic).STAT] = deal('P');
+    if length(SPM.PPM.xCon)<Ic || ~isfield(SPM.PPM.xCon(Ic), 'PSTAT') || isempty(SPM.PPM.xCon(Ic).PSTAT)
+        SPM.PPM.xCon(Ic).PSTAT = xCon(Ic).STAT;
+    end
     
     if all(strcmp([SPM.PPM.xCon(Ic).PSTAT],'T'))
         
@@ -508,29 +522,44 @@ if isfield(SPM,'PPM')
         
         if isfield(SPM.PPM,'VB') % 1st level Bayes
             
-            % For VB - set default effect size to zero
+            % For VB - set default effect size 
             %--------------------------------------------------------------
-            Gamma = 0;
-            xCon(Ic).eidf = spm_input(str,'+1','e',sprintf('%0.2f',Gamma));
-            
-        elseif nc == 1 && isempty(xCon(Ic).Vcon) % 2nd level Bayes
-            % con image not yet written
-            %--------------------------------------------------------------
-            if spm_input('Inference',1,'b',{'Bayesian','classical'},[1 0]);
-                
-                %-Get Bayesian threshold (Gamma) stored in xCon(Ic).eidf
-                % The default is one conditional s.d. of the contrast
-                %----------------------------------------------------------
-                Gamma         = sqrt(xCon(Ic).c'*SPM.PPM.Cb*xCon(Ic).c);
+            try
+                xCon(Ic).eidf = xSPM.gamma;
+            catch
+                Gamma = 0.1;
                 xCon(Ic).eidf = spm_input(str,'+1','e',sprintf('%0.2f',Gamma));
-                xCon(Ic).STAT = 'P';
+            end
+            xCon(Ic).STAT='P';
+            
+        else % 2nd level Bayes
+            %--------------------------------------------------------------
+            if isempty(xCon(Ic).Vcon)
+                % If this is first time contrast is specified then
+                % ask user if it will be Bayesian or Classical
+                if spm_input('Inference',1,'b',{'Bayesian','classical'},[1 0]);
+                    xCon(Ic).STAT = 'P';
+                end
+            end
+            % If Bayesian then get effect size threshold (Gamma) stored in xCon(Ic).eidf
+            % The default is one conditional s.d. of the contrast
+            %----------------------------------------------------------
+            if strcmp(xCon(Ic).STAT,'P')
+                Gamma         = full(sqrt(xCon(Ic).c'*SPM.PPM.Cb*xCon(Ic).c));
+                xCon(Ic).eidf = spm_input(str,'+1','e',sprintf('%0.2f',Gamma));
             end
         end
     else
-        % Compound contrast using Chi^2 statistic
-        %------------------------------------------------------------------
-        if ~isfield(xCon(Ic),'eidf') || isempty(xCon(Ic).eidf)
-            xCon(Ic).eidf = 0; % temporarily
+        if isempty(xCon(Ic).Vcon)
+            % If this is first time contrast is specified then
+            % ask user if it will be Bayesian or Classical
+            %--------------------------------------------------------------
+            if spm_input('Inference',1,'b',{'Bayesian','classical'},[1 0]);
+                % Chi^2 statistic - 1st Level Bayes
+                % Savage-Dickey - 2nd Level Bayes
+                xCon(Ic).eidf = 0; % temporarily
+                xCon(Ic).STAT='P';
+            end
         end
     end
 end
@@ -571,11 +600,15 @@ end
 
 switch STAT
     case 'T'
-        STATstr = sprintf('%c%s_{%.0f}','T',str,df(2));
+        STATstr = sprintf('%s%s_{%.0f}','T',str,df(2));
     case 'F'
-        STATstr = sprintf('%c%s_{%.0f,%.0f}','F',str,df(1),df(2));
+        STATstr = sprintf('%s%s_{%.0f,%.0f}','F',str,df(1),df(2));
     case 'P'
-        STATstr = sprintf('%s^{%0.2f}','PPM',df(1));
+        if strcmp(SPM.PPM.xCon(Ic).PSTAT,'T')
+            STATstr = sprintf('%s^{%0.2f}','PPM',df(1));
+        else
+            STATstr='PPM';
+        end
 end
 
 
@@ -588,7 +621,7 @@ fprintf('\t%-32s: %30s','SPM computation','...initialising')            %-#
 %--------------------------------------------------------------------------
 Z     = Inf;
 for i = Ic
-    Z = min(Z,spm_get_data(xCon(i).Vspm,XYZ));
+    Z = min(Z,spm_data_read(xCon(i).Vspm,'xyz',XYZ));
 end
 
 
@@ -603,7 +636,7 @@ for i = 1:numel(Im)
     
     fprintf('%s%30s',repmat(sprintf('\b'),1,30),'...masking')           %-#
     if isnumeric(Im)
-        Mask = spm_get_data(xCon(Im(i)).Vspm,XYZ);
+        Mask = spm_data_read(xCon(Im(i)).Vspm,'xyz',XYZ);
         um   = spm_u(pm,[xCon(Im(i)).eidf,xX.erdf],xCon(Im(i)).STAT);
         if Ex
             Q = Mask <= um;
@@ -611,8 +644,8 @@ for i = 1:numel(Im)
             Q = Mask >  um;
         end
     else
-        v = spm_vol(Im{i});
-        Mask = spm_get_data(v,v.mat\SPM.xVol.M*[XYZ; ones(1,size(XYZ,2))]);
+        v = spm_data_hdr_read(Im{i});
+        Mask = spm_data_read(v,'xyz',v.mat\SPM.xVol.M*[XYZ; ones(1,size(XYZ,2))]);
         Q = Mask ~= 0 & ~isnan(Mask);
         if Ex, Q = ~Q; end
     end
@@ -620,7 +653,9 @@ for i = 1:numel(Im)
     Z     = Z(Q);
     if isempty(Q)
         fprintf('\n')                                                   %-#
+        sw = warning('off','backtrace');
         warning('SPM:NoVoxels','No voxels survive masking at p=%4.2f',pm);
+        warning(sw);
         break
     end
 end
@@ -641,6 +676,10 @@ catch
     topoFDR = true;
 end
 
+if  spm_mesh_detect(xCon(Ic(1)).Vspm)
+    G = export(gifti(SPM.xVol.G),'patch');
+end
+
 %-Height threshold - classical inference
 %--------------------------------------------------------------------------
 if STAT ~= 'P'
@@ -658,7 +697,7 @@ if STAT ~= 'P'
         end
         thresDesc = spm_input('p value adjustment to control','+1','b',str,[],1);
     end
-    isTT = 0; iTT = IniFile(fullfile(spm('dir'),'toolbox','iTT','config.ini'));
+    isTT = false; iTT = IniFile(fullfile(spm('dir'),'toolbox','iTT','config.ini'));
     
     switch thresDesc
         
@@ -671,7 +710,6 @@ if STAT ~= 'P'
             end
             thresDesc = ['p<' num2str(u) ' (' thresDesc ')'];
             u = spm_uc(u,df,STAT,R,n,S);
-            
             
         case 'iTT' % iterative Two Thresholds
             try
@@ -695,11 +733,10 @@ if STAT ~= 'P'
             [Z, XYZ, th] = spm_uc_iTT(Z,XYZ,u,false);
             u = th.tal; % u shows the lower threshold
             isTT = true; % variable to sign the use of TT correction
-            
-            
+          
         case 'FDR' % False discovery rate
             %--------------------------------------------------------------
-            if topoFDR,
+            if topoFDR
                 fprintf('\n');                                          %-#
                 error('Change defaults.stats.topoFDR to use voxel FDR');
             end
@@ -736,32 +773,40 @@ if STAT ~= 'P'
     %-Compute p-values for topological and voxel-wise FDR (all search voxels)
     %----------------------------------------------------------------------
     if ~topoFDR
+        %-Voxel-wise FDR
+        %------------------------------------------------------------------
         fprintf('%s%30s',repmat(sprintf('\b'),1,30),'...for voxelFDR')  %-#
-        switch STAT
-            case 'Z'
-                Ps = (1-spm_Ncdf(Zum)).^n;
-            case 'T'
-                Ps = (1 - spm_Tcdf(Zum,df(2))).^n;
-            case 'X'
-                Ps = (1-spm_Xcdf(Zum,df(2))).^n;
-            case 'F'
-                Ps = (1 - spm_Fcdf(Zum,df)).^n;
+        Ps = spm_z2p(Zum,df,STAT,n);
+        up = spm_uc_FDR(0.05,df,STAT,n,sort(Ps(:)));
+        Pp = [];
+    else
+        %-Peak FDR
+        %------------------------------------------------------------------
+        if ~spm_mesh_detect(xCon(Ic(1)).Vspm)
+            [up,Pp] = spm_uc_peakFDR(0.05,df,STAT,R,n,Zum,XYZum,u);
+        else
+            [up,Pp] = spm_uc_peakFDR(0.05,df,STAT,R,n,Zum,XYZum,u,G);
         end
-        Ps = sort(Ps);
     end
-    
-    %-Peak FDR
-    %----------------------------------------------------------------------
-    [up,Pp] = spm_uc_peakFDR(0.05,df,STAT,R,n,Zum,XYZum,u);
     
     %-Cluster FDR
     %----------------------------------------------------------------------
-    if STAT == 'T' && n == 1
-        V2R        = 1/prod(SPM.xVol.FWHM(SPM.xVol.DIM > 1));
-        [uc,Pc,ue] = spm_uc_clusterFDR(0.05,df,STAT,R,n,Zum,XYZum,V2R,u);
+    if n == 1 %% && STAT == 'T'
+        if ~spm_mesh_detect(xCon(Ic(1)).Vspm)
+            V2R        = 1/prod(SPM.xVol.FWHM(SPM.xVol.DIM > 1));
+            [uc,Pc,ue] = spm_uc_clusterFDR(0.05,df,STAT,R,n,Zum,XYZum,V2R,u);
+        else
+            V2R        = 1/prod(SPM.xVol.FWHM);
+            [uc,Pc,ue] = spm_uc_clusterFDR(0.05,df,STAT,R,n,Zum,XYZum,V2R,u,G);
+        end
     else
         uc  = NaN;
         ue  = NaN;
+        Pc  = [];
+    end
+    
+    if ~topoFDR
+        uc  = NaN;
         Pc  = [];
     end
     
@@ -773,16 +818,20 @@ if STAT ~= 'P'
 %-Height threshold - Bayesian inference
 %--------------------------------------------------------------------------
 elseif STAT == 'P'
-    
-    u_default = 1 - 1/SPM.xVol.S;
-    str       = 'Posterior probability threshold for PPM';
-    u         = spm_input(str,'+0','r',u_default,1);
-    thresDesc = ['P>'  num2str(u) ' (PPM)'];
+    try
+        u = xSPM.u;
+    catch
+        u_default = 10;
+        str       = 'Log Odds Threshold for PPM';
+        u         = spm_input(str,'+0','r',u_default,1);
+    end
+    thresDesc = ['Log Odds > '  num2str(u)];
     
 end % (if STAT)
 
 %-Calculate height threshold filtering
 %--------------------------------------------------------------------------
+if spm_mesh_detect(xCon(Ic(1)).Vspm), str = 'vertices'; else str = 'voxels'; end
 Q      = find(Z > u);
 
 % ...no threshold filtering but eliminating negative values needed after
@@ -798,7 +847,9 @@ Z      = Z(:,Q);
 XYZ    = XYZ(:,Q);
 if isempty(Q)
     fprintf('\n');                                                      %-#
-    warning('SPM:NoVoxels','No voxels survive height threshold at u=%0.2g',u);
+    sw = warning('off','backtrace');
+    warning('SPM:NoVoxels','No %s survive height threshold at u=%0.2g',str,u);
+    warning(sw);
 end
 
 
@@ -813,12 +864,19 @@ if ~isempty(XYZ)
     try
         k = xSPM.k;
     catch
-        k = spm_input('& extent threshold {voxels}','+1','r',0,1,[0,Inf]);
+        k = spm_input(['& extent threshold {' str '}'],'+1','r',0,1,[0,Inf]);
     end
     
     %-Calculate extent threshold filtering
     %----------------------------------------------------------------------
-    A     = spm_clusters(XYZ);
+    if  ~spm_mesh_detect(xCon(Ic(1)).Vspm)
+        A = spm_clusters(XYZ);
+    else
+        T = false(SPM.xVol.DIM');
+        T(XYZ(1,:)) = true;
+        A = spm_mesh_clusters(G,T)';
+        A = A(XYZ(1,:));
+    end
     Q     = [];
     for i = 1:max(A)
         j = find(A == i);
@@ -831,7 +889,9 @@ if ~isempty(XYZ)
     XYZ   = XYZ(:,Q);
     if isempty(Q)
         fprintf('\n');                                                  %-#
-        warning('SPM:NoVoxels','No voxels survive extent threshold at k=%0.2g',k);
+        sw = warning('off','backtrace');
+        warning('SPM:NoVoxels','No %s survive extent threshold at k=%0.2g',str,k);
+        warning(sw);
     end
     
     %-Display statistics
@@ -845,18 +905,13 @@ if ~isempty(XYZ)
     fprintf('Number of activation clusters: %d\n',max(A));
     fprintf('Active voxel count: %d\n',numel(Z));
 else
-    
-    k = 0;
+    try
+        k = xSPM.k;
+    catch
+        k = 0;
+    end
     
 end % (if ~isempty(XYZ))
-
-%-For Bayesian inference provide (default) option to display contrast values
-%--------------------------------------------------------------------------
-if STAT == 'P'
-    if spm_input('Plot effect-size/statistic',1,'b',{'Yes','No'},[1 0])
-        Z = spm_get_data(xCon(Ic).Vcon,XYZ);
-    end
-end
 
 %==========================================================================
 % - E N D
@@ -901,12 +956,19 @@ catch
     try, xSPM.units = varargin{1}.units; end
 end
 
+%-Topology for surface-based inference
+%--------------------------------------------------------------------------
+if spm_mesh_detect(xCon(Ic(1)).Vspm)
+    xSPM.G     = G;
+    xSPM.XYZmm = xSPM.G.vertices(xSPM.XYZ(1,:),:)';
+end
+
 %-p-values for topological and voxel-wise FDR
 %--------------------------------------------------------------------------
-try, xSPM.Ps    = Ps;             end  % voxel   FDR
-try, xSPM.Pp    = Pp;             end  % peak    FDR
-try, xSPM.Pc    = Pc;             end  % cluster FDR
+try, xSPM.Ps   = Ps;             end  % voxel   FDR
+try, xSPM.Pp   = Pp;             end  % peak    FDR
+try, xSPM.Pc   = Pc;             end  % cluster FDR
 
 %-0.05 critical thresholds for FWEp, FDRp, FWEc, FDRc
 %--------------------------------------------------------------------------
-try, xSPM.uc    = [uu up ue uc];  end
+try, xSPM.uc   = [uu up ue uc];  end
