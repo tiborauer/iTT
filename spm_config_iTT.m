@@ -1,6 +1,6 @@
 function job = spm_config_iTT
-% automatic configuration of the TT toolbox
-% FORMAT job = spm_config_TT;
+% automatic configuration of the iTT toolbox for SPM8 and below
+% FORMAT job = spm_config_iTT;
 %
 % During evry startup of SPM, this program checks whether the modified
 % spm_getSPM.m file is to be used. If this check fails, the program renames
@@ -9,7 +9,7 @@ function job = spm_config_iTT
 % Copyright (C) 2011 Biomedizinische NMR Forschungs GmbH
 
 % Tibor Auer
-% $Id: spm_config_TT.m 2011-07-06 $ 
+% $Id: spm_config_iTT.m 2017-07-31 $ 
 
 %-add toolbox directory into the MATLAB path
 %--------------------------------------------------------------------------
