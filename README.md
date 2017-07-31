@@ -39,10 +39,10 @@ SPM8 v4290
 
 ## Install
 Simply copy the iTT folder into the SPMDIR\toolbox dircetory.
-spm_config_TT.m will arrange everything during startup of SPM. 
+spm_config_iTT.m will arrange everything during startup of SPM. 
 
 Note: Previous spm_getSPM.m files (e.g. in SPMDIR) will be renamed
-to spm_getSPM.m.org. restore_getSPM.m file will be created in the TT folder
+to spm_getSPM.m.org. restore_getSPM.m file will be created in the iTT folder
 to roll back these changes, using cmd_restore.m.
 
 
