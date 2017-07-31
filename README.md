@@ -15,7 +15,7 @@ toolbox.
 Copyright (C) 2011 Biomedizinische NMR Forschungs GmbH
 
 Tibor Auer
-$Id: README 2017-07-05 $ 
+$Id: README 2017-07-31 $ 
 
 
 ## System requirements
@@ -32,10 +32,9 @@ files might be stored (e.g. SPMDIR\toolbox\vbm5).
 
 
 ## Testing environment
-Ubuntu 11.04. 64-bit, Windows 7 64-bit
-MATLAB 7.10 (R2010a)
-SPM8 v4290
-
+Red Hat Enterprise Linux 6.8 64-bit, Ubuntu 11.04. 64-bit, Windows 7 64-bit
+MATLAB 7.10 (R2010a), MATLAB 8.6 (R2015b)
+SPM8 v4290, SPM12 v6906
 
 ## Install
 Simply copy the iTT folder into the SPMDIR\toolbox dircetory.
@@ -80,5 +79,6 @@ Simply remove the TT folder from the SPMDIR\toolbox directory.
 
 
 ## Versions
+* 1.2 - compatible with SPM12
 * 1.1 - cell_index.m has been added
-* 1.0	- Initial Release
+* 1.0 - Initial Release
